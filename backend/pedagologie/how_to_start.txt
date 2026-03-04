@@ -1,0 +1,4 @@
+Via bash, il faut juste executer le script :
+
+chmod +x start.sh
+./start.sh

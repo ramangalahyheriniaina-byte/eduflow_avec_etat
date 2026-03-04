@@ -1,0 +1,17 @@
+# backend/pedagologie/Dockerfile.pedagogie
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copier requirements et installer
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copier le code
+COPY . .
+
+# Exposer le port
+EXPOSE 8000
+
+# Lancer l'application
+CMD ["python", "run.py"]

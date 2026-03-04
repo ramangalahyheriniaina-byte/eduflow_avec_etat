@@ -1,0 +1,72 @@
+# docker-compose.yml (Production) - PostgreSQL 16
+services:
+  # Base de données PostgreSQL - PORT 5433
+  postgres:
+    image: postgres:16-alpine
+    container_name: eduflows_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-eduflows_db}
+      POSTGRES_USER: ${DB_USER:-eduflows_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-eduflows_password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - eduflows_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-eduflows_user} -d ${DB_NAME:-eduflows_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: eduflows_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-eduflows_db}
+      DB_USER: ${DB_USER:-eduflows_user}
+      DB_PASSWORD: ${DB_PASSWORD:-eduflows_password}
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key}
+      JWT_EXPIRE: ${JWT_EXPIRE:-7d}
+      PORT: ${BACKEND_PORT:-3000}
+    networks:
+      - eduflows_network
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Flutter Web avec Nginx
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: eduflows_frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - eduflows_network
+
+networks:
+  eduflows_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
