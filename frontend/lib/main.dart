@@ -8,7 +8,7 @@ import 'Administrateur/pages/Dashboard/view_model/dashboard_view_model.dart';
 import 'Administrateur/pages/edt/view_model/edt_view_model.dart';
 
 import 'auth/view/login.dart';
-import 'auth/view/welcome_view.dart'; // NOUVEAU : Import de la page d'accueil
+import 'auth/view/welcome_view.dart';
 import 'auth/view_model/login_view_model.dart';
 
 void main() {
@@ -34,15 +34,54 @@ class EduFlowApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'EduFlow',
+      initialRoute: '/welcome',
 
-      // Routes
-      initialRoute: '/welcome', // MODIFIÉ : La route initiale devient '/welcome'
+      // Utilisation de onGenerateRoute pour gérer les paramètres
+      onGenerateRoute: (settings) {
+        // Route welcome
+        if (settings.name == '/welcome') {
+          return MaterialPageRoute(
+            builder: (context) => const WelcomeView(),
+          );
+        }
+
+        // Route login
+        if (settings.name == '/') {
+          return MaterialPageRoute(
+            builder: (context) => const LoginScreen(),
+          );
+        }
+
+        // Routes admin avec paramètres
+        if (settings.name == '/admin' ||
+            settings.name == '/prof/home' ||
+            settings.name == '/etudiant/home') {
+
+          // Récupérer les arguments passés
+          final args = settings.arguments as Map<String, String>?;
+
+          return MaterialPageRoute(
+            builder: (context) => MainLayout(
+              userId: args?['userId'] ?? '',
+              userName: args?['userName'] ?? '',
+            ),
+          );
+        }
+
+        // Route par défaut
+        return MaterialPageRoute(
+          builder: (context) => const Scaffold(
+            body: Center(
+              child: Text('Route non trouvée'),
+            ),
+          ),
+        );
+      },
+
+      // Garder routes pour la compatibilité
       routes: {
-        '/welcome': (context) => const WelcomeView(), // NOUVEAU : Page d'accueil
-        '/': (context) => const LoginScreen(), // MODIFIÉ : Route '/login' au lieu de '/'
-        '/admin': (context) => MainLayout(),
-        '/prof/home': (context) => MainLayout(),
-        '/etudiant/home': (context) => MainLayout(),
+        '/welcome': (context) => const WelcomeView(),
+        '/': (context) => const LoginScreen(),
       },
     );
   }

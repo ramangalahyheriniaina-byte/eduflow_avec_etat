@@ -25,6 +25,10 @@ class AppRoutes {
 // ===============================
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
+
+    // Récupérer les arguments passés
+    final args = settings.arguments as Map<String, String>?;
+
     switch (settings.name) {
 
     // =====================
@@ -40,7 +44,10 @@ class AppRouter {
     // =====================
       case AppRoutes.admin:
         return MaterialPageRoute(
-          builder: (_) => const MainLayout(),
+          builder: (_) => MainLayout(
+            userId: args?['userId'] ?? '',
+            userName: args?['userName'] ?? '',
+          ),
         );
 
     // =====================
@@ -48,7 +55,10 @@ class AppRouter {
     // =====================
       case AppRoutes.profHome:
         return MaterialPageRoute(
-          builder: (_) => const MainLayout(),
+          builder: (_) => MainLayout(
+            userId: args?['userId'] ?? '',
+            userName: args?['userName'] ?? '',
+          ),
         );
 
     // =====================
@@ -56,7 +66,10 @@ class AppRouter {
     // =====================
       case AppRoutes.etudiantHome:
         return MaterialPageRoute(
-          builder: (_) => const MainLayout(),
+          builder: (_) => MainLayout(
+            userId: args?['userId'] ?? '',
+            userName: args?['userName'] ?? '',
+          ),
         );
 
     // =====================

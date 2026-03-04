@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class IAService {
   // Utilisez l'IP 
-  static const String baseUrl = 'http://192.168.88.238:5000';
+  static const String baseUrl = 'http://192.168.88.239:5000';
 
   // Timeout plus long pour l'analyse PDF
   static const int timeoutSeconds = 120;

@@ -1,4 +1,3 @@
-
 """
 Application FastAPI principale pour EduFlow
 """
@@ -13,7 +12,8 @@ from app.routers import (
     prof,
     matiere,
     cours,
-    seance
+    seance,
+    setup  # ✅ Ajout du router setup ici
 )
 
 settings = get_settings()
@@ -44,7 +44,7 @@ app.include_router(prof.router, prefix=settings.API_V1_PREFIX)
 app.include_router(matiere.router, prefix=settings.API_V1_PREFIX)
 app.include_router(cours.router, prefix=settings.API_V1_PREFIX)
 app.include_router(seance.router, prefix=settings.API_V1_PREFIX)
-
+app.include_router(setup.router, prefix=settings.API_V1_PREFIX)  # ✅ Inclusion du router setup
 
 @app.get("/")
 def root():

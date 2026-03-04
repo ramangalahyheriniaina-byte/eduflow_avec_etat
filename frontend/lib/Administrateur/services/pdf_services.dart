@@ -11,7 +11,7 @@ class PdfAnalyseService {
       // Vérifier d'abord que le serveur est accessible
       final isHealthy = await _iaService.checkHealth();
       if (!isHealthy) {
-        throw Exception('Serveur IA inaccessible. Vérifiez que le backend tourne sur http://192.168.88.238:5000');
+        throw Exception('Serveur IA inaccessible. Vérifiez que le backend tourne sur http://192.168.88.239:5000');
       }
 
       // Envoyer à l'IA et récupérer les matières filtrées

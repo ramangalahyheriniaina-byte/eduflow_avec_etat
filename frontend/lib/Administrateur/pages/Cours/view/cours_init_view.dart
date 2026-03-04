@@ -107,7 +107,7 @@ class _CoursInitViewState extends State<CoursInitView> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
-                        const Color(0xFFE6F4F5), // MODIFICATION
+                        const Color(0xFFE6F4F5),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 30,
                       vertical: 18,
@@ -136,7 +136,7 @@ class _CoursInitViewState extends State<CoursInitView> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      const Color(0xFF1B6B75), // MODIFICATION
+                      const Color(0xFF1B6B75),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 30,
                     vertical: 18,
@@ -155,7 +155,7 @@ class _CoursInitViewState extends State<CoursInitView> {
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight:
-                            FontWeight.w600, // MODIFICATION
+                            FontWeight.w600,
                       ),
                     ),
                     const SizedBox(width: 15),
@@ -163,7 +163,7 @@ class _CoursInitViewState extends State<CoursInitView> {
                       _currentStep == 2
                           ? Icons.check
                           : Icons.arrow_forward,
-                      color: Colors.white, // MODIFICATION
+                      color: Colors.white,
                     ),
                   ],
                 ),
@@ -222,14 +222,14 @@ class _CoursInitViewState extends State<CoursInitView> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color:
-                    const Color(0xFFE6F4F5), // MODIFICATION
+                    const Color(0xFFE6F4F5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Row(
                 children: [
                   Icon(Icons.info_outline,
                       color:
-                          Color(0xFF1B6B75)), // MODIFICATION
+                          Color(0xFF1B6B75)),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -237,7 +237,7 @@ class _CoursInitViewState extends State<CoursInitView> {
                       style: TextStyle(
                         fontSize: 13,
                         color:
-                            Color(0xFF144D53), // MODIFICATION
+                            Color(0xFF144D53),
                       ),
                     ),
                   ),
@@ -276,7 +276,7 @@ class _CoursInitViewState extends State<CoursInitView> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    const Color(0xFF1B6B75), // MODIFICATION
+                    const Color(0xFF1B6B75),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 18,
@@ -284,7 +284,7 @@ class _CoursInitViewState extends State<CoursInitView> {
               ),
               onPressed: _ajouterClasse,
               child: const Icon(Icons.add,
-                  color: Colors.white), // MODIFICATION
+                  color: Colors.white),
             ),
           ],
         ),
@@ -294,7 +294,7 @@ class _CoursInitViewState extends State<CoursInitView> {
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color:
-                  const Color(0xFFEAF6F7), // MODIFICATION
+                  const Color(0xFFEAF6F7),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Center(
@@ -303,15 +303,15 @@ class _CoursInitViewState extends State<CoursInitView> {
                   Icon(Icons.inbox,
                       size: 48,
                       color:
-                          Color(0xFF1B6B75)), // MODIFICATION
+                          Color(0xFF1B6B75)),
                   SizedBox(height: 12),
                   Text(
                     'Aucune classe ajoutée',
                     style: TextStyle(
                       color:
-                          Color(0xFF144D53), // MODIFICATION
+                          Color(0xFF144D53),
                       fontWeight:
-                          FontWeight.w500, // MODIFICATION
+                          FontWeight.w500,
                     ),
                   ),
                 ],
@@ -329,23 +329,23 @@ class _CoursInitViewState extends State<CoursInitView> {
                   classe,
                   style: const TextStyle(
                     color:
-                        Color(0xFF144D53), // MODIFICATION
+                        Color(0xFF144D53),
                     fontWeight:
-                        FontWeight.w500, // MODIFICATION
+                        FontWeight.w500,
                   ),
                 ),
                 deleteIcon: const Icon(
                   Icons.close,
                   size: 18,
                   color:
-                      Color(0xFF1B6B75), // MODIFICATION
+                      Color(0xFF1B6B75),
                 ),
                 onDeleted: () {
                   setState(() =>
                       _classesACreer.remove(classe));
                 },
                 backgroundColor:
-                    const Color(0xFFE6F4F5), // MODIFICATION
+                    const Color(0xFFE6F4F5),
               );
             }).toList(),
           ),
@@ -534,4 +534,3 @@ class DiagonalClipper
           CustomClipper<Path> oldClipper) =>
       false;
 }
-

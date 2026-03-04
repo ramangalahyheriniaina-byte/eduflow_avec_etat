@@ -13,10 +13,17 @@ import '../pages/Dashboard/view/dashboard_view.dart';
 import '../pages/Cours/view_models/cours_view_model.dart';
 import '../pages/edt/view_model/edt_view_model.dart';
 import '../pages/Dashboard/view_model/dashboard_view_model.dart';
-import '../../../auth/view/login.dart'; 
+import '../../../auth/view/login.dart';
 
 class MainLayout extends StatefulWidget {
-  const MainLayout({super.key});
+  final String userId;
+  final String userName;
+
+  const MainLayout({
+    super.key,
+    required this.userId,
+    required this.userName,
+  });
 
   @override
   State<MainLayout> createState() => _MainLayoutState();
@@ -27,38 +34,71 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isLoading = true;
   bool _needsInitialization = false;
   bool _needsUpload = false;
+  bool _isCheckingSetup = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAnneeActive();
+      _checkSetupStatus();
     });
   }
 
-  Future<void> _checkAnneeActive() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 800));
+  // Force la mise à jour de la navigation
+  void _forceNavigationRefresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
 
-      final coursVM = context.read<CoursViewModel>();
+  // Vérification intelligente du setup
+  Future<void> _checkSetupStatus() async {
+    final coursVM = context.read<CoursViewModel>();
+
+    try {
+      coursVM.resetSetupCheck();
+      final needsSetup = await coursVM.checkIfSetupNeeded();
 
       if (!mounted) return;
 
-      if (!coursVM.isInitialized) {
+      if (needsSetup) {
         setState(() {
           _needsInitialization = true;
+          _needsUpload = false;
+          _anneeEnCours = null;
           _isLoading = false;
+          _isCheckingSetup = false;
         });
+        print('Système non configuré, redirection vers initialisation');
       } else {
+        if (!coursVM.isInitialized) {
+          await coursVM.loadInitialData();
+        }
+
+        if (!mounted) return;
+
         setState(() {
           _anneeEnCours = coursVM.anneeScolaire?.displayName;
-          _isLoading = false;
           _needsInitialization = false;
+          _needsUpload = false;
+          _isLoading = false;
+          _isCheckingSetup = false;
         });
+
+        _forceNavigationRefresh();
+        print('Système déjà configuré, affichage du dashboard');
       }
     } catch (e) {
+      print('Erreur vérification setup: $e');
       if (!mounted) return;
-      setState(() => _isLoading = false);
+
+      setState(() {
+        _needsInitialization = true;
+        _isLoading = false;
+        _isCheckingSetup = false;
+      });
     }
   }
 
@@ -67,17 +107,32 @@ class _MainLayoutState extends State<MainLayout> {
       _needsInitialization = false;
       _needsUpload = true;
     });
+    _forceNavigationRefresh();
   }
 
   void _onUploadComplete() {
     final coursVM = context.read<CoursViewModel>();
+    final navVM = context.read<NavigationViewModel>(); // AJOUT
+
     setState(() {
       _needsUpload = false;
       _anneeEnCours = coursVM.anneeScolaire?.displayName;
     });
+
+    // FORCER LA NAVIGATION VERS LA LISTE DES COURS
+    navVM.setCurrentRoute(Routes.cours);
+
+    _forceNavigationRefresh();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Configuration terminée avec succès!'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
-  // NOUVELLE MÉTHODE POUR LA DÉCONNEXION
   Future<void> _showLogoutDialog(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -105,13 +160,11 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
-  //  NOUVELLE MÉTHODE POUR EXÉCUTER LA DÉCONNEXION
   void _performLogout() {
-    // Reset du ViewModel
     final coursVM = context.read<CoursViewModel>();
     coursVM.reset();
+    coursVM.resetSetupCheck();
 
-    // Navigation vers login
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
@@ -120,7 +173,8 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    // Écran de chargement
+    if (_isLoading || _isCheckingSetup) {
       return Scaffold(
         body: Center(
           child: Column(
@@ -131,7 +185,7 @@ class _MainLayoutState extends State<MainLayout> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Chargement...',
+                _isCheckingSetup ? 'Vérification de la configuration...' : 'Chargement...',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[600],
@@ -145,13 +199,15 @@ class _MainLayoutState extends State<MainLayout> {
     }
 
     final navVM = context.watch<NavigationViewModel>();
-    final coursVM = context.read<CoursViewModel>();
-    final edtVM = context.read<EdtViewModel>();
-    final dashboardVM = context.read<DashboardViewModel>();
+    final coursVM = context.watch<CoursViewModel>();
+    final edtVM = context.watch<EdtViewModel>();
+    final dashboardVM = context.watch<DashboardViewModel>();
 
+    // Mise à jour des données
     dashboardVM.updateSeancesList(edtVM.seances);
     dashboardVM.updateCoursList(coursVM.cours);
 
+    // Mise à jour des flags de navigation
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (edtVM.seances.isNotEmpty) {
         navVM.markEdtExists(true);
@@ -161,12 +217,18 @@ class _MainLayoutState extends State<MainLayout> {
       }
     });
 
+    // ========== SOLUTION : DÉTERMINATION DU CONTENU À AFFICHER ==========
     Widget content;
+
     if (_needsInitialization) {
+      print('📋 Affichage: Initialisation');
       content = CoursInitView(onComplete: _onInitializationComplete);
     } else if (_needsUpload) {
+      print('📤 Affichage: Upload PDF');
       content = UploadProgrammeView(onComplete: _onUploadComplete);
     } else {
+      print('🖥️ Navigation normale - Route: ${navVM.currentRoute}');
+
       switch (navVM.currentRoute) {
         case Routes.programme:
           content = EdtView();
@@ -175,8 +237,12 @@ class _MainLayoutState extends State<MainLayout> {
           content = const DashboardView();
           break;
         case Routes.cours:
-        default:
+        // SOLUTION SIMPLE : TOUJOURS ALLER VERS LISTE VIEW
+          print('📋 Navigation vers CoursListView');
           content = const CoursListView();
+          break;
+        default:
+          content = const DashboardView();
       }
     }
 
@@ -185,7 +251,10 @@ class _MainLayoutState extends State<MainLayout> {
         children: [
           SidebarWithYear(
             anneeEnCours: _anneeEnCours,
+            userName: widget.userName,
+            userId: widget.userId,
             onLogout: () => _showLogoutDialog(context),
+            needsInitialization: _needsInitialization || _needsUpload,
           ),
           Expanded(child: content),
         ],
@@ -194,20 +263,27 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-// ========== SIDEBAR MODIFIÉE AVEC CALLBACK ==========
+// ========== Sidebar améliorée ==========
 class SidebarWithYear extends StatelessWidget {
   final String? anneeEnCours;
-  final VoidCallback onLogout; 
+  final String userName;
+  final String userId;
+  final VoidCallback onLogout;
+  final bool needsInitialization;
 
   const SidebarWithYear({
     super.key,
     this.anneeEnCours,
-    required this.onLogout, 
+    required this.userName,
+    required this.userId,
+    required this.onLogout,
+    this.needsInitialization = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final navVM = context.watch<NavigationViewModel>();
+    final coursVM = context.watch<CoursViewModel>();
 
     return Container(
       width: 280,
@@ -220,7 +296,7 @@ class SidebarWithYear extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
+          // Header avec infos utilisateur
           Container(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -250,13 +326,21 @@ class SidebarWithYear extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Admin Dashboard',
+                  'Admin: $userName',
                   style: TextStyle(
                     fontFamily: 'OpenSans',
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.white.withOpacity(0.8),
                     letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'ID: $userId',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withOpacity(0.5),
                   ),
                 ),
                 if (anneeEnCours != null) ...[
@@ -276,6 +360,30 @@ class SidebarWithYear extends StatelessWidget {
                         Text(
                           anneeEnCours!,
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.95)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Indicateur de statut de configuration
+                if (needsInitialization) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.settings, size: 14, color: Colors.orange),
+                        SizedBox(width: 6),
+                        Text(
+                          'Configuration requise',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange),
                         ),
                       ],
                     ),
@@ -310,7 +418,8 @@ class SidebarWithYear extends StatelessWidget {
                     icon: Icons.book_rounded,
                     route: Routes.cours,
                     navVM: navVM,
-                    isEnabled: true,
+                    isEnabled: !needsInitialization,
+                    disabledTooltip: "Terminez d'abord la configuration",
                   ),
                   const SizedBox(height: 8),
                   _buildMenuItem(
@@ -319,7 +428,8 @@ class SidebarWithYear extends StatelessWidget {
                     icon: Icons.calendar_month_rounded,
                     route: Routes.programme,
                     navVM: navVM,
-                    isEnabled: true,
+                    isEnabled: !needsInitialization && coursVM.cours.isNotEmpty,
+                    disabledTooltip: "Créez d'abord des cours",
                   ),
                   const SizedBox(height: 8),
                   _buildMenuItem(
@@ -328,8 +438,7 @@ class SidebarWithYear extends StatelessWidget {
                     icon: Icons.dashboard_rounded,
                     route: Routes.dashboard,
                     navVM: navVM,
-                    isEnabled: navVM.dashboardEnabled,
-                    disabledTooltip: "Créez d'abord un emploi du temps",
+                    isEnabled: true,
                   ),
                 ],
               ),
@@ -360,9 +469,16 @@ class SidebarWithYear extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        'System Online',
-                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.w500),
+                      Expanded(
+                        child: Text(
+                          needsInitialization ? 'Configuration en cours...' : 'System Online',
+                          style: TextStyle(
+                            color: needsInitialization ? Colors.orange : Colors.white.withOpacity(0.9),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
@@ -376,7 +492,7 @@ class SidebarWithYear extends StatelessWidget {
                   navVM: navVM,
                   isEnabled: true,
                   isDanger: true,
-                  customOnTap: onLogout, // UTILISER LE CALLBACK
+                  customOnTap: onLogout,
                 ),
               ],
             ),
@@ -395,9 +511,9 @@ class SidebarWithYear extends StatelessWidget {
         required bool isEnabled,
         String disabledTooltip = "",
         bool isDanger = false,
-        VoidCallback? customOnTap, // NOUVEAU PARAMÈTRE
+        VoidCallback? customOnTap,
       }) {
-    final isActive = navVM.currentRoute == route;
+    final isActive = navVM.currentRoute == route && isEnabled;
 
     return Tooltip(
       message: isEnabled ? "" : disabledTooltip,
@@ -421,9 +537,9 @@ class SidebarWithYear extends StatelessWidget {
           child: InkWell(
             onTap: isEnabled ? () {
               if (customOnTap != null) {
-                customOnTap(); //  ACTION PERSONNALISÉE (DÉCONNEXION)
+                customOnTap();
               } else {
-                navVM.setCurrentRoute(route); //  NAVIGATION NORMALE
+                navVM.setCurrentRoute(route);
               }
             } : null,
             borderRadius: BorderRadius.circular(16),
@@ -444,7 +560,9 @@ class SidebarWithYear extends StatelessWidget {
                     child: Icon(
                       icon,
                       size: 22,
-                      color: isEnabled ? (isDanger ? const Color(0xFFFEE2E2) : Colors.white) : Colors.white.withOpacity(0.4),
+                      color: isEnabled
+                          ? (isDanger ? const Color(0xFFFEE2E2) : Colors.white)
+                          : Colors.white.withOpacity(0.4),
                     ),
                   ),
                   const SizedBox(width: 14),

@@ -26,6 +26,13 @@ class CoursViewModel extends ChangeNotifier {
   String? _error;
   bool _isInitialized = false;
 
+  // ========== NOUVEAU : SETUP ==========
+  bool _setupChecked = false;
+  bool _needsSetup = true;
+
+  bool get needsSetup => _needsSetup;
+  bool get setupChecked => _setupChecked;
+
   // ========== GETTERS ==========
   AnneeScolaire? get anneeScolaire => _anneeScolaire;
   List<Classe> get classes => _classes;
@@ -47,6 +54,42 @@ class CoursViewModel extends ChangeNotifier {
   String? get error => _error;
   bool get isInitialized => _isInitialized;
 
+  // ========== NOUVELLE MÉTHODE : CHECK SETUP ==========
+  Future<bool> checkIfSetupNeeded() async {
+    if (_setupChecked) return _needsSetup;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      print('🔍 Vérification si configuration nécessaire...');
+
+      final isComplete = await _coursService.isSetupComplete();
+
+      if (isComplete) {
+        print('✅ Système déjà configuré, chargement des données...');
+        await loadInitialData();
+        _needsSetup = false;
+      } else {
+        print('⚠️ Configuration requise');
+        _needsSetup = true;
+      }
+
+      _setupChecked = true;
+      _isLoading = false;
+      notifyListeners();
+
+      return _needsSetup;
+    } catch (e) {
+      print('❌ Erreur checkIfSetupNeeded: $e');
+      _needsSetup = true;
+      _setupChecked = true;
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    }
+  }
+
   // ========== CHARGEMENT INITIAL DES DONNÉES ==========
   Future<void> loadInitialData() async {
     _isLoading = true;
@@ -67,23 +110,33 @@ class CoursViewModel extends ChangeNotifier {
 
       _anneeScolaire = anneesData.isNotEmpty
           ? anneesData.firstWhere(
-            (a) => a.isActive,
-        orElse: () => anneesData.first,
-      )
+              (a) => a.isActive,
+              orElse: () => anneesData.first,
+            )
           : null;
 
-      print(' Données chargées:');
+      // Mettre à jour needsSetup
+      _needsSetup = !(_anneeScolaire != null &&
+          _classes.isNotEmpty &&
+          _profs.isNotEmpty);
+
+      if (!_needsSetup) {
+        print('✅ Données existantes trouvées, setup non nécessaire');
+      }
+
+      print('📊 Données chargées:');
       print('   - Classes: ${_classes.length}');
       print('   - Profs: ${_profs.length}');
       print('   - Cours: ${_cours.length}');
       print('   - Année scolaire: ${_anneeScolaire?.displayName ?? "Aucune"}');
+      print('   - Needs setup: $_needsSetup');
 
       _isInitialized = true;
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _error = 'Erreur lors du chargement des données: $e';
-      print(' Erreur loadInitialData: $e');
+      print('❌ Erreur loadInitialData: $e');
       _isLoading = false;
       notifyListeners();
     }
@@ -100,7 +153,7 @@ class CoursViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print(' Initialisation nouvelle année scolaire...');
+      print('🚀 Initialisation nouvelle année scolaire...');
 
       final annee = AnneeScolaire(
         startYear: startYear,
@@ -109,7 +162,7 @@ class CoursViewModel extends ChangeNotifier {
       );
 
       _anneeScolaire = await _coursService.createAnneeScolaire(annee);
-      print(' Année scolaire créée: ${_anneeScolaire!.displayName}');
+      print('✅ Année scolaire créée: ${_anneeScolaire!.displayName}');
 
       for (String nomClasse in nomsClasses) {
         final classe = Classe(nomClasse: nomClasse);
@@ -117,16 +170,25 @@ class CoursViewModel extends ChangeNotifier {
         _classes.add(classeCreee);
       }
 
+      // Après création, setup est complété (PDF matières attendu après)
+      _needsSetup = false;
       _isInitialized = true;
       _isLoading = false;
       notifyListeners();
-      print(' Initialisation terminée avec succès!');
+
+      print('✅ Initialisation terminée avec succès!');
     } catch (e) {
       _error = 'Erreur lors de l\'initialisation: $e';
-      print(' Erreur initialiserAnneeScolaire: $e');
+      print('❌ Erreur initialiserAnneeScolaire: $e');
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // ========== RESET SETUP CHECK ==========
+  void resetSetupCheck() {
+    _setupChecked = false;
+    notifyListeners();
   }
 
   // ========== GÉNÉRER LES MATIÈRES DEPUIS PDF (AVEC IA) ==========
@@ -138,7 +200,6 @@ class CoursViewModel extends ChangeNotifier {
     try {
       print(' Génération des matières depuis PDF via IA...');
 
-      // 1. Analyser le PDF avec l'IA - retourne les données filtrées
       final List<Map<String, dynamic>> matieresIA = await _pdfService.analyser(pdfBytes);
 
       print(' Matières extraites par l\'IA: ${matieresIA.length}');
@@ -147,14 +208,10 @@ class CoursViewModel extends ChangeNotifier {
         throw Exception('Aucune matière détectée dans le PDF');
       }
 
-      // 2. Pour chaque classe, créer les matières
       for (var classe in _classes) {
-        // Supprimer les anciennes matières et cours associés
         if (classe.matieres != null && classe.matieres!.isNotEmpty) {
           print(' Suppression des anciennes matières pour ${classe.nomClasse}');
-
           for (var ancienneMatiere in classe.matieres!) {
-            // Supprimer les cours associés
             final coursAssocies = _cours.where((c) => c.idMatiere == ancienneMatiere.idMatiere).toList();
             for (var cours in coursAssocies) {
               if (cours.idCours != null) {
@@ -163,17 +220,11 @@ class CoursViewModel extends ChangeNotifier {
               }
             }
           }
-
-          // Vider la liste des matières de la classe
           classe.matieres?.clear();
         }
-
-        // Initialiser la liste si null
         classe.matieres ??= [];
 
-        // 3. Créer les NOUVELLES matières depuis l'IA
         print(' Création des nouvelles matières pour ${classe.nomClasse}');
-
         for (var matiereData in matieresIA) {
           final nouvelleMatiere = Matiere(
             nomMatiere: matiereData['nom_matiere'],
@@ -182,7 +233,6 @@ class CoursViewModel extends ChangeNotifier {
           );
 
           try {
-            // Sauvegarder en BDD
             final matiereCreee = await _coursService.createMatiere(nouvelleMatiere);
             classe.matieres!.add(matiereCreee);
             print('    ${matiereCreee.nomMatiere} - ${matiereCreee.heureTotale}h');
@@ -194,18 +244,15 @@ class CoursViewModel extends ChangeNotifier {
         print(' ${classe.nomClasse}: ${classe.matieres?.length} matière(s) créées depuis IA');
       }
 
-      // 4. Rafraîchir les données pour tout recharger
       await loadInitialData();
-
       _isLoading = false;
       notifyListeners();
       print(' Génération IA terminée avec succès');
-
     } catch (e) {
       _error = 'Erreur lors de la génération IA: $e';
       _isLoading = false;
       notifyListeners();
-      print(' Erreur genererDepuisPdf: $e');
+      print('❌ Erreur genererDepuisPdf: $e');
       rethrow;
     }
   }
@@ -219,11 +266,7 @@ class CoursViewModel extends ChangeNotifier {
     try {
       print(' Ajout professeur: $nomProf');
 
-      final newProf = Prof(
-        nomProf: nomProf,
-        nbAbs: 0,
-      );
-
+      final newProf = Prof(nomProf: nomProf, nbAbs: 0);
       final profCree = await _coursService.createProf(newProf);
       _profs.add(profCree);
 
@@ -233,7 +276,7 @@ class CoursViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = 'Erreur lors de l\'ajout du professeur: $e';
-      print(' Erreur ajouterProf: $e');
+      print('❌ Erreur ajouterProf: $e');
       _isLoading = false;
       notifyListeners();
     }
@@ -247,7 +290,6 @@ class CoursViewModel extends ChangeNotifier {
     try {
       print(' Suppression professeur ID: $idProf');
 
-      // 1. Supprimer tous les cours associés à ce prof
       final coursDuProf = _cours.where((c) => c.idProf == idProf).toList();
       for (var cours in coursDuProf) {
         if (cours.idCours != null) {
@@ -255,10 +297,7 @@ class CoursViewModel extends ChangeNotifier {
         }
       }
 
-      // 2. Supprimer le prof
       await _coursService.deleteProf(idProf);
-
-      // 3. Mettre à jour les données locales
       _profs.removeWhere((p) => p.idProf == idProf);
       _cours.removeWhere((c) => c.idProf == idProf);
 
@@ -268,17 +307,14 @@ class CoursViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = 'Erreur lors de la suppression du professeur: $e';
-      print(' Erreur supprimerProf: $e');
+      print('❌ Erreur supprimerProf: $e');
       _isLoading = false;
       notifyListeners();
     }
   }
 
   // ========== AFFECTATION PROF À MATIÈRE ==========
-  Future<void> affecterProfAMatiere({
-    required int idMatiere,
-    required int idProf,
-  }) async {
+  Future<void> affecterProfAMatiere({required int idMatiere, required int idProf}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -289,7 +325,6 @@ class CoursViewModel extends ChangeNotifier {
       final existingCoursIndex = _cours.indexWhere((c) => c.idMatiere == idMatiere);
 
       if (existingCoursIndex != -1) {
-        // Mettre à jour
         final cours = _cours[existingCoursIndex];
         final coursUpdate = cours.copyWith(idProf: idProf);
 
@@ -299,7 +334,6 @@ class CoursViewModel extends ChangeNotifier {
           print(' Cours mis à jour: ${cours.idCours}');
         }
       } else {
-        // Créer nouveau cours
         final newCours = Cours(
           statut: StatutCours.nonCommence,
           idMatiere: idMatiere,
@@ -316,7 +350,7 @@ class CoursViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = 'Erreur lors de l\'affectation: $e';
-      print(' Erreur affecterProfAMatiere: $e');
+      print('❌ Erreur affecterProfAMatiere: $e');
       _isLoading = false;
       notifyListeners();
     }
